@@ -1,0 +1,2 @@
+# forex-scalper
+
