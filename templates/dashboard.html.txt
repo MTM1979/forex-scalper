@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forex Scalper Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .card { margin-bottom: 20px; }
+        .signal-buy { background-color: #d4edda; }
+        .signal-sell { background-color: #f8d7da; }
+        .positive { color: green; }
+        .negative { color: red; }
+        #chart-container { height: 400px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Forex Scalper Dashboard</span>
+            <div class="d-flex">
+                <span class="navbar-text me-3" id="status-display">Status: Loading...</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-success" onclick="controlBot('start')">Start</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlBot('stop')">Stop</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Left Column -->
+            <div class="col-md-4">
+                <!-- Signal Feed -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Live Signals</h5>
+                        <span class="badge bg-primary" id="signal-count">0</span>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;" id="signal-feed">
+                        <p class="text-muted">No signals available</p>
+                    </div>
+                </div>
+
+                <!-- Strategy Controls -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Strategy Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="ml-toggle" onchange="updateStrategy()">
+                            <label class="form-check-label" for="ml-toggle">ML Prediction</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="correlation-toggle" onchange="updateStrategy()">
+                            <label class="form-check-label" for="correlation-toggle">Correlation Analysis</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="timeframe-toggle" checked onchange="updateStrategy()">
+                            <label class="form-check-label" for="timeframe-toggle">Multi-Timeframe Analysis</label>
+                        </div>
+                        <div class="mt-3">
+                            <label class="form-label">Account Selection</label>
+                            <select class="form-select" id="account-select" onchange="switchAccount()">
+                                <option value="main">Main Account</option>
+                                <option value="backup">Backup Account</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Column -->
+            <div class="col-md-4">
+                <!-- Performance Metrics -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Performance Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-6 mb-3">
+                                <h6>Win Rate</h6>
+                                <h3 id="win-rate">0%</h3>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h6>Drawdown</h6>
+                                <h3 id="drawdown">0%</h3>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h6>Exposure</h6>
+                                <h3 id="exposure">0</h3>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h6>Total Trades</h6>
+                                <h3 id="total-trades">0</h3>
+                            </div>
+                            <div class="col-12">
+                                <h6>Profit</h6>
+                                <h3 id="profit" class="positive">$0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart Selection -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Chart Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        <select class="form-select mb-3" id="chart-select" onchange="updateChart()">
+                            <option value="">Select a symbol</option>
+                        </select>
+                        <div id="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-md-4">
+                <!-- News Filter -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">News Filter</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshNews()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div class="card-body" style="max-height: 400px; overflow-y: auto;" id="news-feed">
+                        <p class="text-muted">Loading news...</p>
+                    </div>
+                </div>
+
+                <!-- Trade Log -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Trade Execution Log</h5>
+                        <span class="badge bg-info" id="trade-count">0</span>
+                    </div>
+                    <div class="card-body" style="max-height: 300px; overflow-y: auto;" id="trade-log">
+                        <p class="text-muted">No trades yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentChart = null;
+        let symbols = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAllData();
+            setInterval(updateAllData, 5000); // Update every 5 seconds
+        });
+
+        // Update all dashboard data
+        function updateAllData() {
+            updateStatus();
+            updateSignals();
+            updatePerformance();
+            updateNews();
+            updateTrades();
+        }
+
+        // Update status display
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('status-display').textContent = 
+                        `Bot: ${data.bot_status} | MT5: ${data.mt5_status} | Account: ${data.account}`;
+                    document.getElementById('account-select').value = data.account;
+                });
+        }
+
+        // Update signals display
+        function updateSignals() {
+            fetch('/api/signals')
+                .then(response => response.json())
+                .then(signals => {
+                    const signalFeed = document.getElementById('signal-feed');
+                    const signalCount = document.getElementById('signal-count');
+                    
+                    signalCount.textContent = signals.length;
+                    
+                    if (signals.length === 0) {
+                        signalFeed.innerHTML = '<p class="text-muted">No signals available</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    signals.forEach(signal => {
+                        const signalClass = signal.direction.toLowerCase() === 'buy' ? 'signal-buy' : 'signal-sell';
+                        html += `
+                            <div class="card mb-2 ${signalClass}">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>${signal.symbol}</strong>
+                                        <span class="badge bg-${signal.direction.toLowerCase() === 'buy' ? 'success' : 'danger'}">
+                                            ${signal.direction}
+                                        </span>
+                                    </div>
+                                    <div class="small">
+                                        Entry: ${signal.entry} | SL: ${signal.sl} | TP: ${signal.tp}
+                                    </div>
+                                    <div class="text-muted small">
+                                        ${new Date(signal.timestamp).toLocaleTimeString()}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add to symbols list for chart dropdown
+                        if (!symbols.includes(signal.symbol)) {
+                            symbols.push(signal.symbol);
+                            updateChartDropdown();
+                        }
+                    });
+                    
+                    signalFeed.innerHTML = html;
+                });
+        }
+
+        // Update performance metrics
+        function updatePerformance() {
+            fetch('/api/performance')
+                .then(response => response.json())
+                .then(metrics => {
+                    document.getElementById('win-rate').textContent = `${metrics.win_rate.toFixed(2)}%`;
+                    document.getElementById('drawdown').textContent = `${metrics.drawdown.toFixed(2)}%`;
+                    document.getElementById('exposure').textContent = metrics.exposure;
+                    document.getElementById('total-trades').textContent = metrics.total_trades;
+                    
+                    const profitElement = document.getElementById('profit');
+                    profitElement.textContent = `$${metrics.profit.toFixed(2)}`;
+                    profitElement.className = metrics.profit >= 0 ? 'positive' : 'negative';
+                });
+        }
+
+        // Update news feed
+        function updateNews() {
+            fetch('/api/news')
+                .then(response => response.json())
+                .then(news => {
+                    const newsFeed = document.getElementById('news-feed');
+                    
+                    if (news.length === 0) {
+                        newsFeed.innerHTML = '<p class="text-muted">No news available</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    news.forEach(item => {
+                        html += `
+                            <div class="card mb-2">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title">${item.title}</h6>
+                                    <p class="card-text small">${item.summary}</p>
+                                    <div class="d-flex justify-content-between text-muted small">
+                                        <span>${item.time}</span>
+                                        <span class="badge bg-warning">${item.impact}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    newsFeed.innerHTML = html;
+                });
+        }
+
+        // Update trade log
+        function updateTrades() {
+            fetch('/api/trades')
+                .then(response => response.json())
+                .then(trades => {
+                    const tradeLog = document.getElementById('trade-log');
+                    const tradeCount = document.getElementById('trade-count');
+                    
+                    tradeCount.textContent = trades.length;
+                    
+                    if (trades.length === 0) {
+                        tradeLog.innerHTML = '<p class="text-muted">No trades yet</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    trades.slice().reverse().forEach(trade => {
+                        html += `
+                            <div class="card mb-2">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>${trade.symbol}</strong>
+                                        <span class="badge bg-${trade.direction.toLowerCase() === 'buy' ? 'success' : 'danger'}">
+                                            ${trade.direction}
+                                        </span>
+                                    </div>
+                                    <div class="small">
+                                        Price: ${trade.entry_price} | Lots: ${trade.lot_size}
+                                    </div>
+                                    <div class="text-muted small">
+                                        ${new Date(trade.timestamp).toLocaleTimeString()}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    tradeLog.innerHTML = html;
+                });
+        }
+
+        // Update chart dropdown with available symbols
+        function updateChartDropdown() {
+            const chartSelect = document.getElementById('chart-select');
+            chartSelect.innerHTML = '<option value="">Select a symbol</option>';
+            
+            symbols.forEach(symbol => {
+                const option = document.createElement('option');
+                option.value = symbol;
+                option.textContent = symbol;
+                chartSelect.appendChild(option);
+            });
+        }
+
+        // Update chart based on selected symbol
+        function updateChart() {
+            const symbol = document.getElementById('chart-select').value;
+            if (!symbol) return;
+            
+            fetch(`/api/chart/${symbol}`)
+                .then(response => response.json())
+                .then(chartData => {
+                    if (chartData.error) {
+                        console.error(chartData.error);
+                        return;
+                    }
+                    
+                    const chartContainer = document.getElementById('chart-container');
+                    if (currentChart) {
+                        Plotly.purge(chartContainer);
+                    }
+                    
+                    const figure = JSON.parse(chartData);
+                    Plotly.newPlot(chartContainer, figure.data, figure.layout);
+                });
+        }
+
+        // Control bot functions
+        function controlBot(action) {
+            fetch('/api/control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: action })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Bot ${action} response:`, data);
+                updateStatus();
+            });
+        }
+
+        // Update strategy settings
+        function updateStrategy() {
+            const useMl = document.getElementById('ml-toggle').checked;
+            const useCorrelation = document.getElementById('correlation-toggle').checked;
+            const useMultiTimeframe = document.getElementById('timeframe-toggle').checked;
+            
+            fetch('/api/control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'update_strategy',
+                    use_ml: useMl,
+                    use_correlation: useCorrelation,
+                    use_multi_timeframe: useMultiTimeframe
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Strategy updated:', data);
+            });
+        }
+
+        // Switch account
+        function switchAccount() {
+            const account = document.getElementById('account-select').value;
+            
+            fetch('/api/control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'switch_account',
+                    account: account
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Account switched:', data);
+                updateStatus();
+            });
+        }
+
+        // Refresh news manually
+        function refreshNews() {
+            fetch('/api/news')
+                .then(response => response.json())
+                .then(news => {
+                    updateNews();
+                });
+        }
+    </script>
+</body>
+</html>
